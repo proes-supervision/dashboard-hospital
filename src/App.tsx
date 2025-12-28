@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, BarChart, Bar, Cell
 } from 'recharts';
 import { 
   Briefcase, Calendar, DollarSign, Activity, 
   Clock, Menu, X, Upload, FileText, Plus, Trash2, CheckCircle, 
-  ArrowRight, LayoutDashboard, LogOut, Info, Lock, User, RefreshCw, WifiOff, AlertTriangle, Shield
+  ArrowRight, LayoutDashboard, LogOut, Info, Lock, User, RefreshCw, WifiOff, AlertTriangle, Shield, Layers, PieChart
 } from 'lucide-react';
 
 // =================================================================================
@@ -16,14 +16,14 @@ import {
 // 3. Copia las llaves y pégalas abajo respetando las comillas.
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDleejd5FCvIjDRM9mqF7U0mJlYXF9zRLg",
-  authDomain: "dashboard-hospital-isaia-df99d.firebaseapp.com",
-  projectId: "dashboard-hospital-isaia-df99d",
-  storageBucket: "dashboard-hospital-isaia-df99d.firebasestorage.app",
-  messagingSenderId: "687104534240",
-  appId: "1:687104534240:web:376002034ee0ebadc89285",
-  measurementId: "G-WBW3TS72VH"
-};
+    apiKey: "AIzaSyDleejd5FCvIjDRM9mqF7U0mJlYXF9zRLg",
+    authDomain: "dashboard-hospital-isaia-df99d.firebaseapp.com",
+    projectId: "dashboard-hospital-isaia-df99d",
+    storageBucket: "dashboard-hospital-isaia-df99d.firebasestorage.app",
+    messagingSenderId: "687104534240",
+    appId: "1:687104534240:web:376002034ee0ebadc89285",
+    measurementId: "G-WBW3TS72VH"
+  };  
 
 // =================================================================================
 
@@ -244,11 +244,14 @@ const DataInputScreen = ({ onDataLoaded, onCancel }) => {
   };
 
   const loadExample = () => {
-    let header = "Item\tActividad\tUnidad\tFecha_Inicio\tFecha_Fin\tCantidad_Original\tCantidad_Vigente\tPrecio_Unitario";
+    let header = "Modulo\tItem\tActividad\tUnidad\tFecha_Inicio\tFecha_Fin\tCantidad_Original\tCantidad_Vigente\tPrecio_Unitario";
     for(let i=1; i<=25; i++) header += `\tP${i}_Cant`;
     let rows = "";
     const startDate = new Date(baseConfig.startDate || '2023-01-01');
+    const modules = ["Arquitectura", "Estructuras", "Inst. Eléctricas", "Inst. Sanitarias", "Gases Medicinales"];
+    
     for(let i=1; i<=20; i++) {
+        const mod = modules[i % modules.length];
         const precio = Math.floor(Math.random()*500)+50;
         const cantVigente = 1000;
         const itemStart = new Date(startDate);
@@ -257,7 +260,7 @@ const DataInputScreen = ({ onDataLoaded, onCancel }) => {
         itemEnd.setDate(itemStart.getDate() + 60);
         const fInicio = itemStart.toISOString().split('T')[0];
         const fFin = itemEnd.toISOString().split('T')[0];
-        let row = `${i}\tActividad Ejemplo ${i}\tm3\t${fInicio}\t${fFin}\t${cantVigente}\t${cantVigente}\t${precio}`;
+        let row = `${mod}\t${i}\tActividad Ejemplo ${i}\tm3\t${fInicio}\t${fFin}\t${cantVigente}\t${cantVigente}\t${precio}`;
         for(let p=1; p<=25; p++) {
              const pDate = new Date(startDate);
              pDate.setMonth(pDate.getMonth() + p - 1);
@@ -337,6 +340,12 @@ const DataInputScreen = ({ onDataLoaded, onCancel }) => {
                    <button onClick={loadExample} className="text-xs text-blue-600 font-medium hover:underline">Usar Ejemplo</button>
                    <button onClick={() => setStep(1)} className="text-xs text-slate-500 hover:underline">Volver</button>
               </div>
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 mb-2">
+                  <p className="font-bold mb-1">Columnas requeridas (Orden sugerido):</p>
+                  <code className="font-mono text-[10px] break-all">
+                      Modulo, Item, Actividad, Unidad, Fecha_Inicio, Fecha_Fin, Cantidad_Original, Cantidad_Vigente, Precio_Unitario, P1_Cant...
+                  </code>
+              </div>
               <textarea 
                 className="w-full h-48 p-3 border border-slate-300 rounded-lg font-mono text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                 placeholder="Pegar datos de Excel..."
@@ -357,7 +366,7 @@ const DataInputScreen = ({ onDataLoaded, onCancel }) => {
   );
 };
 
-// --- LOGICA CURVAS S ---
+// --- LOGICA DE CURVAS S ---
 const calculatePlannedCurve = (items, projectStartDate, totalPeriods) => {
     const plannedData = Array(totalPeriods).fill(0).map(() => 0);
     const startObj = new Date(projectStartDate);
@@ -442,10 +451,32 @@ export default function DashboardObra() {
     let accumExecutedPhysical = 0;
     let accumFinancial = advanceAmount; 
 
+    // --- PROCESAMIENTO DE MÓDULOS (NUEVO) ---
+    const modulesMap = {};
+
     for (let i = 1; i <= totalPeriods; i++) {
       const periodKey = `p${i}_cant`; 
       let periodPhysicalAmount = 0;
-      items.forEach(item => { periodPhysicalAmount += ((item[periodKey] || 0) * (item['precio_unitario'] || 0)); });
+      
+      items.forEach(item => { 
+          const amount = ((item[periodKey] || 0) * (item['precio_unitario'] || 0));
+          periodPhysicalAmount += amount; 
+          
+          // Agrupar por modulo para estadísticas globales
+          const modName = item['modulo'] || 'GENERAL';
+          if (!modulesMap[modName]) {
+              modulesMap[modName] = { 
+                  name: modName, 
+                  totalBudget: 0, 
+                  executedAccum: 0 
+              };
+          }
+          if (i === 1) { // Sumar presupuesto solo una vez
+             modulesMap[modName].totalBudget += (item['cantidad_vigente'] * item['precio_unitario']);
+          }
+          // Sumar lo ejecutado hasta este periodo en el acumulado global
+          // (Se recalcula al final, aquí solo para el loop si fuera necesario, pero mejor hacerlo fuera)
+      });
 
       const amortization = periodPhysicalAmount * (config.advancePercent / 100);
       const liquidPayable = periodPhysicalAmount - amortization;
@@ -483,16 +514,36 @@ export default function DashboardObra() {
        const cantVigente = item['cantidad_vigente'] || item['cantidad_total'] || 0;
        newItem.cantidad_vigente = cantVigente;
        newItem.historial = {};
+       
+       // Acumular ejecutado por módulo
+       const modName = item['modulo'] || 'GENERAL';
+       let itemAccumAmount = 0;
+
        let accumQty = 0;
        for(let i=1; i<=totalPeriods; i++) {
            const qty = item[`p${i}_cant`] || 0;
            accumQty += qty;
-           newItem.historial[i] = { qtyPartial: qty, qtyAccum: accumQty, amtPartial: qty * item['precio_unitario'], amtAccum: accumQty * item['precio_unitario'] };
+           const amount = qty * item['precio_unitario'];
+           newItem.historial[i] = { qtyPartial: qty, qtyAccum: accumQty, amtPartial: amount, amtAccum: accumQty * item['precio_unitario'] };
+           itemAccumAmount += amount;
        }
+       
+       // Actualizar acumulado del módulo
+       if (modulesMap[modName]) {
+           modulesMap[modName].executedAccum += itemAccumAmount;
+       }
+       
        return newItem;
     });
 
-    return { monthlyData, processedItems, totalPeriods, advanceAmount };
+    // Calcular estadísticas finales de módulos
+    const moduleStats = Object.values(modulesMap).map(m => ({
+        ...m,
+        incidence: (m.totalBudget / config.totalAmount) * 100,
+        progress: (m.executedAccum / m.totalBudget) * 100
+    }));
+
+    return { monthlyData, processedItems, totalPeriods, advanceAmount, moduleStats };
   };
 
   const handleDateChange = (newDate) => {
@@ -528,15 +579,14 @@ export default function DashboardObra() {
           <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center animate-fade-in">
               <div className="bg-white p-8 rounded-xl shadow-lg border max-w-md w-full">
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600"><Briefcase size={32}/></div>
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Proyecto no encontrado</h2>
-                  <p className="text-slate-500 mb-6">No se encontraron datos guardados en la nube para este proyecto. Requiere carga inicial.</p>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Hospital Isaias - Oruro</h2>
+                  <p className="text-slate-500 mb-6">Sistema de Supervisión y Control de Obra.</p>
                   
                   {user ? (
-                      <button onClick={() => setAppState('input')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700">Cargar Datos</button>
+                      <button onClick={() => setAppState('input')} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700">Cargar Proyecto</button>
                   ) : (
                       <div className="text-center pt-4 border-t border-slate-100">
-                          <p className="text-xs text-slate-400 mb-2">Área restringida para administradores</p>
-                          <button onClick={() => setShowLogin(true)} className="text-sm text-blue-600 hover:underline flex items-center justify-center gap-1 w-full"><Lock size={12}/> Acceso Admin</button>
+                          <button onClick={() => setShowLogin(true)} className="text-sm text-blue-600 hover:underline flex items-center justify-center gap-1 w-full"><Lock size={12}/> Acceso Supervisión</button>
                       </div>
                   )}
               </div>
@@ -545,7 +595,7 @@ export default function DashboardObra() {
       );
   }
 
-  const { monthlyData, processedItems } = projectData;
+  const { monthlyData, processedItems, moduleStats } = projectData;
   const currentPeriodData = monthlyData[selectedPeriod - 1] || {};
   const totalModAmount = config.modifications.reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
   const elapsedDays = Math.floor((new Date(targetDate) - new Date(config.startDate)) / (1000 * 60 * 60 * 24));
@@ -554,22 +604,38 @@ export default function DashboardObra() {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
+      {/* SIDEBAR */}
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-slate-300 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 flex flex-col`}>
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
             <div className="flex items-center gap-2">
                 <div className="bg-blue-600 p-1.5 rounded-md"><Activity size={18} className="text-white"/></div>
-                <span className="font-bold text-white tracking-tight">Construct<span className="text-blue-400">Visor</span></span>
+                <div>
+                    <span className="font-bold text-white tracking-tight block text-sm">Supervisión</span>
+                    <span className="text-[10px] text-blue-400 font-medium">HOSPITAL ISAIAS</span>
+                </div>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="md:hidden"><X size={18}/></button>
         </div>
-        <nav className="p-4 space-y-1 flex-1">
+        <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
             <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Vistas</p>
             <button onClick={() => setActiveTab('general')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${activeTab === 'general' ? 'bg-blue-600 text-white font-medium shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <LayoutDashboard size={18}/> Tablero de Control
             </button>
             <button onClick={() => setActiveTab('items')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${activeTab === 'items' ? 'bg-blue-600 text-white font-medium shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <FileText size={18}/> Gestión de Planillas
+                <FileText size={18}/> Planillas / Módulos
             </button>
+            
+            {/* Lista rápida de módulos */}
+            <div className="mt-6">
+                <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Resumen Módulos</p>
+                {moduleStats.slice(0, 5).map((mod, i) => (
+                    <div key={i} className="px-3 py-2 text-xs flex justify-between group cursor-default">
+                        <span className="text-slate-400 group-hover:text-white transition-colors truncate w-24" title={mod.name}>{mod.name}</span>
+                        <span className="text-emerald-500 font-bold">{mod.progress.toFixed(1)}%</span>
+                    </div>
+                ))}
+            </div>
+
             {user && (
             <div className="mt-8 pt-4 border-t border-slate-800">
                 <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Admin</p>
@@ -598,12 +664,16 @@ export default function DashboardObra() {
       </aside>
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0 z-20">
             <div className="flex items-center gap-4">
                 <button onClick={() => setSidebarOpen(true)} className="md:hidden"><Menu size={20}/></button>
-                <h2 className="text-base font-semibold text-slate-800 hidden md:block">
-                    {activeTab === 'general' ? 'Tablero de Control Gerencial' : 'Detalle de Planillas'}
-                </h2>
+                <div>
+                    <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide hidden md:block">
+                        SUPERVISIÓN CONSTRUCCIÓN HOSPITAL DE SEGUNDO NIVEL ISAIAS - ORURO
+                    </h2>
+                    <p className="text-xs text-slate-500 hidden md:block">Tablero de Control Gerencial</p>
+                </div>
             </div>
             <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Fecha de Corte:</span>
@@ -614,9 +684,10 @@ export default function DashboardObra() {
             </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50/50">
+        <main className="flex-1 overflow-auto p-4 md:p-6 bg-slate-50/50 pb-16">
            {activeTab === 'general' ? (
              <div className="space-y-6 animate-fade-in pb-12">
+                {/* 1. SECCIÓN DE ESTADO CONTRACTUAL */}
                 <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start mb-6">
                         <div className="lg:col-span-1 border-r border-slate-100 pr-4">
@@ -627,12 +698,6 @@ export default function DashboardObra() {
                                 <div className="flex justify-between text-xs">
                                     <span className="text-slate-500">Original</span>
                                     <span className="font-medium text-slate-700">{formatCurrency(config.contractOriginal)}</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Modificaciones</span>
-                                    <span className={`font-medium ${totalModAmount > 0 ? 'text-orange-600' : 'text-slate-400'}`}>
-                                        {totalModAmount > 0 ? '+' : ''}{formatCurrency(totalModAmount)}
-                                    </span>
                                 </div>
                                 <div className="pt-2 border-t border-slate-100 flex justify-between text-sm font-bold">
                                     <span className="text-slate-800">Vigente</span>
@@ -653,10 +718,6 @@ export default function DashboardObra() {
                                 <div className="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
                                     <div className={`h-1.5 rounded-full ${progressTime > 90 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${progressTime}%`}}></div>
                                 </div>
-                                <div className="flex justify-between text-[10px] text-slate-400">
-                                    <span>Inicio: {new Date(config.startDate).toLocaleDateString()}</span>
-                                    <span>Fin: {new Date(new Date(config.startDate).getTime() + (config.totalDays * 86400000)).toLocaleDateString()}</span>
-                                </div>
                             </div>
                         </div>
 
@@ -666,55 +727,58 @@ export default function DashboardObra() {
                             </h3>
                             <div className="grid grid-cols-4 gap-3">
                                 <KPICard label="SPI Acum" value={currentPeriodData.spiAccum} color={currentPeriodData.spiAccum >= 0.95 ? "emerald" : "indigo"} />
-                                <KPICard label="SPI Mes" value={currentPeriodData.spiMonth} color={currentPeriodData.spiMonth >= 1 ? "emerald" : "slate"} />
                                 <KPICard label="% Físico" value={currentPeriodData.progressPhysical} subValue="Real" color="blue" />
                                 <KPICard label="% Financ." value={currentPeriodData.progressFinancial} subValue="Pagado" color="emerald" />
                             </div>
                         </div>
                     </div>
-
-                    {config.modifications.length > 0 && (
-                        <div className="border-t border-slate-100 pt-4 mt-2">
-                             <div className="overflow-x-auto">
-                                <table className="w-full text-xs text-left text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold">
-                                        <tr>
-                                            <th className="px-3 py-2 rounded-l-md">Evento</th>
-                                            <th className="px-3 py-2">Descripción</th>
-                                            <th className="px-3 py-2 text-right">Monto</th>
-                                            <th className="px-3 py-2 text-right rounded-r-md">Plazo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        <tr>
-                                            <td className="px-3 py-2 font-bold text-blue-700">Contrato</td>
-                                            <td className="px-3 py-2">Contrato Original</td>
-                                            <td className="px-3 py-2 text-right font-medium">{formatCurrency(config.contractOriginal)}</td>
-                                            <td className="px-3 py-2 text-right font-medium">{config.daysOriginal} días</td>
-                                        </tr>
-                                        {config.modifications.map(mod => (
-                                            <tr key={mod.id}>
-                                                <td className="px-3 py-2 font-medium">
-                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${mod.type === 'CM' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                        {mod.type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-2">{mod.name}</td>
-                                                <td className={`px-3 py-2 text-right font-medium ${mod.amount > 0 ? 'text-green-600' : mod.amount < 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                                                    {mod.amount !== 0 ? (mod.amount > 0 ? '+' : '') + formatCurrency(mod.amount) : '-'}
-                                                </td>
-                                                <td className={`px-3 py-2 text-right font-medium ${mod.days > 0 ? 'text-orange-600' : 'text-slate-400'}`}>
-                                                    {mod.days !== 0 ? `+${mod.days} días` : '-'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                             </div>
-                        </div>
-                    )}
                 </div>
 
+                {/* 2. NUEVA SECCIÓN: CONTROL DE MÓDULOS */}
+                <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                        <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <Layers size={16} className="text-indigo-500"/> Estructura de Costos por Módulo
+                        </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left text-slate-600">
+                            <thead className="bg-white text-slate-500 font-semibold border-b border-slate-100">
+                                <tr>
+                                    <th className="px-4 py-3">Módulo</th>
+                                    <th className="px-4 py-3 text-right">Presupuesto</th>
+                                    <th className="px-4 py-3 text-right">Incidencia Total</th>
+                                    <th className="px-4 py-3 text-right">Ejecutado (Acum)</th>
+                                    <th className="px-4 py-3 text-center">Avance Módulo</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {moduleStats.map((mod, idx) => (
+                                    <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                                        <td className="px-4 py-3 font-medium text-slate-800">{mod.name}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(mod.totalBudget)}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                {mod.incidence.toFixed(2)}%
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-blue-600">{formatCurrency(mod.executedAccum)}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-emerald-500 rounded-full" style={{width: `${Math.min(mod.progress, 100)}%`}}></div>
+                                                </div>
+                                                <span className="text-[10px] font-bold w-8 text-right">{mod.progress.toFixed(1)}%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* 3. GRÁFICA PRINCIPAL */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
@@ -754,7 +818,7 @@ export default function DashboardObra() {
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div className="flex items-center gap-4">
                         <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Detalle de Actividades</h3>
+                            <h3 className="font-bold text-slate-800 text-sm">Detalle de Planillas</h3>
                             <p className="text-xs text-slate-500 mt-0.5">Planilla {selectedPeriod} • {currentPeriodData.fullLabel}</p>
                         </div>
                         <select value={selectedPeriod} onChange={(e) => handlePeriodChange(Number(e.target.value))} className="bg-white border border-slate-300 text-slate-700 text-xs rounded p-1 font-bold">
@@ -770,8 +834,9 @@ export default function DashboardObra() {
                     <table className="w-full text-xs text-left text-slate-600">
                         <thead className="bg-slate-50 sticky top-0 z-10 text-slate-500 font-semibold uppercase tracking-wider">
                             <tr>
+                                <th className="px-4 py-3 border-b">Módulo</th>
                                 <th className="px-4 py-3 border-b">Item</th>
-                                <th className="px-4 py-3 border-b w-1/3">Descripción</th>
+                                <th className="px-4 py-3 border-b w-1/4">Descripción</th>
                                 <th className="px-4 py-3 border-b text-right">Unidad</th>
                                 {!certificateView && <th className="px-4 py-3 border-b text-right">Total</th>}
                                 <th className="px-4 py-3 border-b text-right">P.U.</th>
@@ -786,6 +851,7 @@ export default function DashboardObra() {
                             const percent = (hist.qtyAccum / item.cantidad_vigente) * 100;
                             return (
                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-4 py-2 font-medium text-[10px] text-slate-500 uppercase">{item['modulo'] || 'GENERAL'}</td>
                                     <td className="px-4 py-2 font-medium">{item['item']}</td>
                                     <td className="px-4 py-2 truncate max-w-xs" title={item['actividad']}>{item['actividad']}</td>
                                     <td className="px-4 py-2 text-right font-mono">{item['unidad']}</td>
@@ -818,6 +884,11 @@ export default function DashboardObra() {
              </div>
            )}
         </main>
+        
+        {/* FOOTER DE CREDITOS (STICKY) */}
+        <div className="bg-slate-900 text-slate-500 text-[10px] py-1 px-6 text-center shrink-0 border-t border-slate-800">
+            Desarrollado por <strong>Zacarias Ortega</strong> para el Proyecto Construcción Hospital de Segundo Nivel Isaias - Oruro
+        </div>
         
         {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLoginSuccess={(u) => setUser(u)} />}
       </div>
