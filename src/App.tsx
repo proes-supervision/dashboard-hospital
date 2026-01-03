@@ -69,7 +69,6 @@ const parseCSV = (text) => {
          item[header] = val; 
       } else {
         let numStr = val ? val.replace(/[Bs\s$]/g, '') : '0';
-        // Lógica para detectar 1.000,00 vs 1,000.00
         if (numStr.indexOf(',') > -1 && numStr.indexOf('.') > -1) {
              if (numStr.indexOf(',') > numStr.indexOf('.')) { 
                  numStr = numStr.replace(/\./g, '').replace(',', '.');
@@ -88,7 +87,6 @@ const parseCSV = (text) => {
   return data;
 };
 
-// FORMATO BOLIVIANO: 1.234.567,89
 const formatCurrency = (val) => {
     return new Intl.NumberFormat('es-BO', { 
         style: 'currency', 
@@ -366,10 +364,6 @@ export default function DashboardObra() {
     const modulesMap = {};
 
     // GENERADOR DE PERIODOS PERSONALIZADO (HOSPITAL ISAIAS)
-    // P1: Sept 23, P2: Oct 23, P3: Nov 23
-    // P4: Dic 23 + Ene 24 + Feb 24 + Mar 24
-    // P5: Abr 24 ...
-    
     const getPeriodLabel = (pIndex) => {
         const i = pIndex + 1; // 1-based
         if (i === 1) return "Sep 23";
@@ -416,7 +410,7 @@ export default function DashboardObra() {
         amortization, 
         liquidPartial: liquidPayable, 
         physicalAccum: accumExecutedPhysical, 
-        financialAccum: accumFinancial, // Líquidos + Anticipo Original
+        financialAccum: accumFinancial, 
         plannedAccum: plannedCurveAccum[i-1] || 0,
         progressPhysical: (accumExecutedPhysical / config.totalAmount) * 100,
         progressFinancial: (accumFinancial / config.totalAmount) * 100,
